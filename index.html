@@ -317,7 +317,7 @@ function cloneLevel(i){
   goal=lvl.goal;
   return lvl;
 }
-function resetPlayer(startPos){ player={x:startPos.x,y:startPos.y,w:26,h:34,vx:0,vy:0,onGround:false,wasOnGround:false}; }
+function resetPlayer(startPos){ player={x:startPos.x,y:startPos.y,w:26,h:34,vx:0,vy:0,onGround:false,wasOnGround:false,legPhase:0}; }
 
 function startGame(){
   ensureAudio();
@@ -407,6 +407,7 @@ function update(now){
 
   player.wasOnGround=player.onGround;
   player.vx = keys.left ? -MOVE_SPEED : keys.right ? MOVE_SPEED : 0;
+  if(player.onGround) player.legPhase += Math.abs(player.vx)*0.16;
   moveAxis('x', player.vx);
 
   if(keys.jump && player.onGround){ player.vy=JUMP_V; player.onGround=false; sfx.jump(); squash=0.7;
@@ -465,6 +466,45 @@ function drawPlatform(p,color){
   ctx.fillStyle='rgba(255,255,255,.1)'; roundRect(p.x,p.y,p.w,6,4); ctx.fill();
 }
 
+function drawLimb(x,y,angle,len,w,color){
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(angle);
+  ctx.fillStyle=color;
+  roundRect(-w/2,0,w,len,w/2); ctx.fill();
+  ctx.restore();
+}
+// a tiny procedural walking man: legs/arms swing based on how far the player has actually
+// walked (not wall-clock time), so the gait speeds up/stops with real movement, not the clock
+function drawMiniMan(cx, feetY, p){
+  const skin='#f3c99a', suit='#ff3b52', suitDk='#c4152b', shoe='#241026';
+  const grounded = p.onGround;
+  const moving = Math.abs(p.vx) > 0.1;
+  const swing = (grounded && moving) ? Math.sin(p.legPhase||0) : 0;
+  const legA = grounded ? swing*0.6  : -0.4;   // front
+  const legB = grounded ? -swing*0.6 : 0.6;    // back
+  const armA = grounded ? -swing*0.55 : -0.7;
+  const armB = grounded ? swing*0.55  : 0.95;
+
+  const hipY = feetY-13, shoulderY = feetY-24, headY = feetY-30;
+
+  drawLimb(cx-2, hipY, legB, 12, 3.6, shoe);       // back leg
+  drawLimb(cx-3, shoulderY, armB, 10, 2.8, skin);  // back arm
+
+  ctx.fillStyle=suit; roundRect(cx-6, shoulderY-1, 12, 15, 4); ctx.fill();
+  ctx.fillStyle=suitDk; roundRect(cx-6, shoulderY-1, 12, 4, 4); ctx.fill();
+
+  drawLimb(cx+2, hipY, legA, 12, 3.6, shoe);       // front leg
+  drawLimb(cx+3, shoulderY, armA, 10, 2.8, skin);  // front arm
+
+  ctx.fillStyle=skin;
+  ctx.beginPath(); ctx.arc(cx, headY, 6.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle=suitDk;
+  ctx.beginPath(); ctx.arc(cx, headY-2.2, 6.5, Math.PI*1.08, Math.PI*1.92); ctx.fill();
+  ctx.fillStyle='#241026';
+  ctx.fillRect(cx-3.6, headY-1, 2.2, 2.2);
+  ctx.fillRect(cx+1.4, headY-1, 2.2, 2.2);
+}
+
 function draw(now){
   ctx.save();
   const off=shakeOffset();
@@ -513,14 +553,10 @@ function draw(now){
 
   if((state==='playing' || state==='dead') && player){
     ctx.save();
-    const cx=player.x+player.w/2, cy=player.y+player.h;
+    const cx=player.x+player.w/2, feetY=player.y+player.h;
     const sy=squash, sx=1+(1-squash)*0.6;
-    ctx.translate(cx,cy); ctx.scale(sx,sy); ctx.translate(-cx,-cy-player.h*sy+player.h);
-    ctx.fillStyle='#ff3b52';
-    roundRect(player.x, player.y, player.w, player.h, 7); ctx.fill();
-    ctx.fillStyle='#0d0710';
-    ctx.fillRect(player.x+5, player.y+8, 4,4);
-    ctx.fillRect(player.x+player.w-9, player.y+8, 4,4);
+    ctx.translate(cx,feetY); ctx.scale(sx,sy); ctx.translate(-cx,-feetY);
+    drawMiniMan(cx, feetY, player);
     ctx.restore();
   }
 
