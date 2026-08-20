@@ -138,42 +138,170 @@ function shakeOffset(){ if(shake<=0) return {x:0,y:0}; return {x:(Math.random()-
    traps: each has a tripwireX (crossing it arms the trap after armDelay ms) and a spike rect.
 ------------------------------------------------------- */
 const LEVELS=[
-  { // Level 1 — the basics: one collapsing floor, one hidden tripwire trap
-    start:{x:30,y:330},
+  { // Level 1
+    start:{x:30, y:330},
     platforms:[
-      {x:0,   y:GROUND_Y, w:220, h:60, type:'solid'},
-      {x:260, y:GROUND_Y, w:140, h:60, type:'collapse'},
-      {x:440, y:GROUND_Y, w:460, h:60, type:'solid'},
-    ],
-    traps:[ {tripwireX:300, armDelay:420, spikeX:640, spikeW:60, spikeH:26} ],
-    goal:{x:840, y:330, w:36, h:50},
-  },
-  { // Level 2 — adds a fake platform that looks completely solid
-    start:{x:30,y:330},
-    platforms:[
-      {x:0,   y:GROUND_Y, w:180, h:60, type:'solid'},
-      {x:220, y:GROUND_Y, w:120, h:60, type:'fake'},
-      {x:380, y:GROUND_Y, w:120, h:60, type:'collapse'},
-      {x:540, y:GROUND_Y, w:360, h:60, type:'solid'},
-    ],
-    traps:[ {tripwireX:60, armDelay:900, spikeX:610, spikeW:56, spikeH:26} ],
-    goal:{x:840, y:330, w:36, h:50},
-  },
-  { // Level 3 — two traps armed at different times, tighter platforming
-    start:{x:30,y:330},
-    platforms:[
-      {x:0,   y:GROUND_Y, w:160, h:60, type:'solid'},
-      {x:200, y:GROUND_Y, w:90,  h:60, type:'collapse'},
-      {x:330, y:GROUND_Y, w:90,  h:60, type:'fake'},
-      {x:460, y:GROUND_Y, w:90,  h:60, type:'solid'},
-      {x:590, y:GROUND_Y, w:90,  h:60, type:'collapse'},
-      {x:720, y:GROUND_Y, w:180, h:60, type:'solid'},
+      {x:0, y:380, w:220, h:60, type:'solid'},
+      {x:220, y:380, w:140, h:60, type:'collapse'},
+      {x:360, y:380, w:460, h:60, type:'solid'},
     ],
     traps:[
-      {tripwireX:180, armDelay:500, spikeX:470, spikeW:50, spikeH:26},
-      {tripwireX:470, armDelay:380, spikeX:760, spikeW:50, spikeH:26},
+      {tripwireX:40, armDelay:500, spikeX:600, spikeW:45, spikeH:26},
     ],
-    goal:{x:850, y:330, w:36, h:50},
+    goal:{x:750, y:330, w:36, h:50},
+  },
+  { // Level 2
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:200, h:60, type:'solid'},
+      {x:218, y:380, w:55, h:60, type:'fake'},
+      {x:270, y:380, w:150, h:60, type:'solid'},
+      {x:420, y:380, w:100, h:60, type:'collapse'},
+      {x:520, y:380, w:300, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:40, armDelay:900, spikeX:740, spikeW:45, spikeH:26},
+    ],
+    goal:{x:750, y:330, w:36, h:50},
+  },
+  { // Level 3
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:160, h:60, type:'solid'},
+      {x:160, y:380, w:100, h:60, type:'collapse'},
+      {x:260, y:380, w:130, h:60, type:'solid'},
+      {x:408, y:380, w:50, h:60, type:'fake'},
+      {x:460, y:380, w:300, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:10, armDelay:650, spikeX:40, spikeW:45, spikeH:26},
+      {tripwireX:260, armDelay:500, spikeX:660, spikeW:45, spikeH:26},
+    ],
+    goal:{x:690, y:330, w:36, h:50},
+  },
+  { // Level 4
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:170, h:60, type:'solid'},
+      {x:240, y:380, w:110, h:60, type:'solid'},
+      {x:350, y:380, w:100, h:60, type:'collapse'},
+      {x:520, y:380, w:280, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:40, armDelay:700, spikeX:720, spikeW:45, spikeH:26},
+    ],
+    goal:{x:730, y:330, w:36, h:50},
+  },
+  { // Level 5
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:140, h:60, type:'solid'},
+      {x:140, y:380, w:90, h:60, type:'solid'},
+      {x:248, y:380, w:50, h:60, type:'fake'},
+      {x:300, y:380, w:110, h:60, type:'solid'},
+      {x:410, y:380, w:90, h:60, type:'collapse'},
+      {x:500, y:380, w:90, h:60, type:'solid'},
+      {x:660, y:380, w:120, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:20, armDelay:900, spikeX:40, spikeW:45, spikeH:26},
+      {tripwireX:500, armDelay:450, spikeX:720, spikeW:45, spikeH:26},
+    ],
+    goal:{x:710, y:330, w:36, h:50},
+  },
+  { // Level 6
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:150, h:60, type:'solid'},
+      {x:150, y:380, w:90, h:60, type:'collapse', collapseDelay:280},
+      {x:240, y:380, w:90, h:60, type:'solid'},
+      {x:348, y:380, w:50, h:60, type:'fake'},
+      {x:400, y:380, w:100, h:60, type:'solid'},
+      {x:500, y:380, w:90, h:60, type:'collapse', collapseDelay:280},
+      {x:660, y:380, w:150, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:20, armDelay:650, spikeX:40, spikeW:45, spikeH:26},
+      {tripwireX:400, armDelay:500, spikeX:430, spikeW:45, spikeH:26},
+      {tripwireX:600, armDelay:420, spikeX:720, spikeW:45, spikeH:26},
+    ],
+    goal:{x:740, y:330, w:36, h:50},
+  },
+  { // Level 7
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:140, h:60, type:'solid'},
+      {x:140, y:380, w:80, h:60, type:'collapse', collapseDelay:260},
+      {x:220, y:380, w:80, h:60, type:'collapse', collapseDelay:260},
+      {x:300, y:380, w:110, h:60, type:'solid'},
+      {x:480, y:380, w:90, h:60, type:'solid'},
+      {x:588, y:380, w:45, h:60, type:'fake'},
+      {x:640, y:380, w:180, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:20, armDelay:750, spikeX:40, spikeW:45, spikeH:26},
+      {tripwireX:420, armDelay:500, spikeX:720, spikeW:45, spikeH:26},
+    ],
+    goal:{x:750, y:330, w:36, h:50},
+  },
+  { // Level 8
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:120, h:60, type:'solid'},
+      {x:120, y:380, w:90, h:60, type:'solid'},
+      {x:228, y:380, w:45, h:60, type:'fake'},
+      {x:280, y:380, w:100, h:60, type:'solid'},
+      {x:380, y:380, w:80, h:60, type:'collapse', collapseDelay:260},
+      {x:460, y:380, w:90, h:60, type:'solid'},
+      {x:568, y:380, w:45, h:60, type:'fake'},
+      {x:620, y:380, w:90, h:60, type:'solid'},
+      {x:710, y:380, w:120, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:20, armDelay:650, spikeX:40, spikeW:45, spikeH:26},
+      {tripwireX:330, armDelay:480, spikeX:310, spikeW:45, spikeH:26},
+      {tripwireX:560, armDelay:420, spikeX:750, spikeW:45, spikeH:26},
+    ],
+    goal:{x:760, y:330, w:36, h:50},
+  },
+  { // Level 9
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:110, h:60, type:'solid'},
+      {x:110, y:380, w:70, h:60, type:'collapse', collapseDelay:260},
+      {x:180, y:380, w:70, h:60, type:'collapse', collapseDelay:260},
+      {x:250, y:380, w:100, h:60, type:'solid'},
+      {x:368, y:380, w:45, h:60, type:'fake'},
+      {x:420, y:380, w:90, h:60, type:'solid'},
+      {x:580, y:380, w:90, h:60, type:'solid'},
+      {x:740, y:380, w:120, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:20, armDelay:750, spikeX:40, spikeW:45, spikeH:26},
+      {tripwireX:420, armDelay:450, spikeX:280, spikeW:45, spikeH:26},
+    ],
+    goal:{x:790, y:330, w:36, h:50},
+  },
+  { // Level 10
+    start:{x:30, y:330},
+    platforms:[
+      {x:0, y:380, w:70, h:60, type:'solid'},
+      {x:70, y:380, w:60, h:60, type:'collapse', collapseDelay:550},
+      {x:130, y:380, w:110, h:60, type:'solid'},
+      {x:258, y:380, w:44, h:60, type:'fake'},
+      {x:300, y:380, w:150, h:60, type:'solid'},
+      {x:450, y:380, w:60, h:60, type:'collapse', collapseDelay:550},
+      {x:510, y:380, w:110, h:60, type:'solid'},
+      {x:638, y:380, w:44, h:60, type:'fake'},
+      {x:680, y:380, w:130, h:60, type:'solid'},
+      {x:810, y:380, w:90, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:10, armDelay:650, spikeX:25, spikeW:30, spikeH:26},
+      {tripwireX:200, armDelay:420, spikeX:400, spikeW:30, spikeH:26},
+      {tripwireX:500, armDelay:350, spikeX:760, spikeW:30, spikeH:26},
+    ],
+    goal:{x:830, y:330, w:36, h:50},
   },
 ];
 
