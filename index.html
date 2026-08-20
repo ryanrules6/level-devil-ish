@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Level Devil-ish</title>
+<meta name="description" content="A tiny trick-trap platformer. The level lies to you. Dying is how you learn.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😈</text></svg>">
+<style>
+  :root{ --bg:#0d0710; --panel:#1a0f22; --line:#3a2340; --red:#ff3b52; --red-dk:#c4152b;
+         --lime:#8bff5a; --amber:#ffc23e; --ink:#f4ecff; --muted:#a08bb8; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:radial-gradient(1200px 700px at 50% -10%, #2a1035 0%, #0d0710 60%);}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%;
+       font-family:'Trebuchet MS',system-ui,sans-serif;color:var(--ink);padding:20px;gap:12px}
+  h1{font-size:22px;margin:0;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+  h1 span{color:var(--red)}
+  .meta{display:flex;gap:16px;align-items:center;color:var(--muted);font-weight:600;font-size:13px}
+  .meta b{color:var(--ink)}
+  .wrap{position:relative;border-radius:14px;overflow:hidden;box-shadow:0 30px 70px -20px rgba(0,0,0,.7), 0 0 0 2px var(--line)}
+  canvas{display:block;background:#0d0710;max-width:100%;height:auto}
+  .hint{color:var(--muted);font-size:12.5px;text-align:center;max-width:560px;line-height:1.5}
+  .hint b{color:var(--ink)}
+  .overlay{position:absolute;inset:0;background:rgba(10,4,14,.88);display:none;
+           flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px}
+  .overlay.show{display:flex}
+  .overlay .big{font-size:38px;font-weight:800}
+  .overlay .msg{color:var(--muted);font-weight:600;font-size:14px;max-width:340px}
+  .overlay .msg.win{color:var(--lime)}
+  .overlay .msg.die{color:var(--red)}
+  .overlay .sub{color:var(--muted);font-weight:600;font-size:12px;opacity:.8}
+  button{border:0;cursor:pointer;font-family:inherit;font-weight:700;font-size:14px;padding:10px 22px;
+         border-radius:10px;background:var(--red);color:#fff;box-shadow:0 4px 0 var(--red-dk);transition:transform .1s}
+  button:active{transform:scale(.96)}
+  footer{color:#5c4d6c;font-size:11px;letter-spacing:.3px}
+</style>
+</head>
+<body>
+  <h1>😈 Level <span>Devil</span>-ish</h1>
+  <div class="meta">Level <b id="levelNum">1</b> / <b id="levelTotal">1</b> &nbsp;·&nbsp; Attempts: <b id="attempts">1</b> &nbsp;·&nbsp; Best: <b id="best">—</b></div>
+  <div class="wrap">
+    <canvas id="c" width="900" height="440"></canvas>
+
+    <div class="overlay show" id="titleOverlay">
+      <div class="big">😈 Level Devil-ish</div>
+      <div class="msg">A tiny trick-trap platformer. Nothing here is as safe as it looks.<br>Dying is how you learn where the traps are — that's the whole game.</div>
+      <button onclick="startGame()">Play</button>
+      <div class="sub">← → / A D move · Space / ↑ jump · R restart · M mute</div>
+    </div>
+
+    <div class="overlay" id="dieOverlay">
+      <div class="big">💀 nope.</div>
+      <div class="msg die" id="dieMsg"></div>
+      <button onclick="restart()">Try again</button>
+    </div>
+    <div class="overlay" id="winOverlay">
+      <div class="big" id="winBig">🎉 Level Complete!</div>
+      <div class="msg win" id="winMsg"></div>
+      <button id="winBtn" onclick="nextLevel()">Next Level</button>
+    </div>
+  </div>
+  <div class="hint">
+    <b>← → / A D</b> to move · <b>Space / ↑ / W</b> to jump · <b>R</b> to restart · <b>M</b> to mute.
+  </div>
+  <footer>made with spite, for friends</footer>
+
+<script>
+const canvas=document.getElementById('c'), ctx=canvas.getContext('2d');
+const W=canvas.width, H=canvas.height;
+const GRAVITY=0.62, MOVE_SPEED=3.6, JUMP_V=-11.2, MAX_FALL=14;
+const GROUND_Y=380;
+
+const DIE_MESSAGES=[
+  "Told you nothing was fixed about that.",
+  "You'll remember this spot next time.",
+  "Rude, but expected.",
+  "The floor was never your friend.",
+  "That's rule #1: trust nothing.",
+  "Skill issue. Try again.",
+  "That platform was never real.",
+  "Looked safe. Wasn't. Classic.",
+];
+
+/* ---------------- audio (synthesized, no files needed) ---------------- */
+let audioCtx=null, muted=false;
+function ensureAudio(){ if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+function tone(freq, dur, type='sine', vol=0.09, delay=0){
+  if(muted || !audioCtx) return;
+  const t0=audioCtx.currentTime+delay;
+  const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+  osc.type=type; osc.frequency.setValueAtTime(freq, t0);
+  gain.gain.setValueAtTime(vol, t0);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(t0); osc.stop(t0+dur);
+}
+const sfx={
+  jump: ()=>tone(520,0.12,'square',0.07),
+  land: ()=>tone(160,0.08,'sine',0.06),
+  trap: ()=>{ tone(90,0.25,'sawtooth',0.08); tone(70,0.3,'sawtooth',0.05,0.05); },
+  die: ()=>{ tone(300,0.15,'sawtooth',0.09); tone(180,0.2,'sawtooth',0.08,0.1); tone(90,0.3,'sawtooth',0.07,0.2); },
+  win: ()=>{ [523,659,784,1047].forEach((f,i)=>tone(f,0.22,'triangle',0.08,i*0.09)); },
+  fall: ()=>tone(220,0.3,'sine',0.06),
+};
+
+/* ---------------- particles ---------------- */
+let particles=[];
+function spawnParticles(x,y,count,color,opts={}){
+  const spread=opts.spread??3, life=opts.life??32, size=opts.size??3, upBias=opts.upBias??0;
+  for(let i=0;i<count;i++){
+    particles.push({
+      x, y, vx:(Math.random()-0.5)*spread*2, vy:(Math.random()-0.5)*spread*2-upBias,
+      life, maxLife:life, color, size:size*(0.6+Math.random()*0.8)
+    });
+  }
+}
+function updateParticles(){
+  for(const p of particles){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.25; p.life--; }
+  particles=particles.filter(p=>p.life>0);
+}
+function drawParticles(){
+  for(const p of particles){
+    ctx.globalAlpha=Math.max(0,p.life/p.maxLife);
+    ctx.fillStyle=p.color;
+    ctx.fillRect(p.x-p.size/2, p.y-p.size/2, p.size, p.size);
+  }
+  ctx.globalAlpha=1;
+}
+
+/* ---------------- camera shake ---------------- */
+let shake=0;
+function addShake(amt){ shake=Math.min(shake+amt, 14); }
+function shakeOffset(){ if(shake<=0) return {x:0,y:0}; return {x:(Math.random()-0.5)*shake, y:(Math.random()-0.5)*shake}; }
+
+/* ---------------- level definitions ----------------
+   platform types: solid ground (default), collapse (crumbles a moment after you stand on it),
+   fake (looks identical to solid ground, but isn't — you fall right through it).
+   traps: each has a tripwireX (crossing it arms the trap after armDelay ms) and a spike rect.
+------------------------------------------------------- */
+const LEVELS=[
+  { // Level 1 — the basics: one collapsing floor, one hidden tripwire trap
+    start:{x:30,y:330},
+    platforms:[
+      {x:0,   y:GROUND_Y, w:220, h:60, type:'solid'},
+      {x:260, y:GROUND_Y, w:140, h:60, type:'collapse'},
+      {x:440, y:GROUND_Y, w:460, h:60, type:'solid'},
+    ],
+    traps:[ {tripwireX:300, armDelay:420, spikeX:640, spikeW:60, spikeH:26} ],
+    goal:{x:840, y:330, w:36, h:50},
+  },
+  { // Level 2 — adds a fake platform that looks completely solid
+    start:{x:30,y:330},
+    platforms:[
+      {x:0,   y:GROUND_Y, w:180, h:60, type:'solid'},
+      {x:220, y:GROUND_Y, w:120, h:60, type:'fake'},
+      {x:380, y:GROUND_Y, w:120, h:60, type:'collapse'},
+      {x:540, y:GROUND_Y, w:360, h:60, type:'solid'},
+    ],
+    traps:[ {tripwireX:60, armDelay:900, spikeX:610, spikeW:56, spikeH:26} ],
+    goal:{x:840, y:330, w:36, h:50},
+  },
+  { // Level 3 — two traps armed at different times, tighter platforming
+    start:{x:30,y:330},
+    platforms:[
+      {x:0,   y:GROUND_Y, w:160, h:60, type:'solid'},
+      {x:200, y:GROUND_Y, w:90,  h:60, type:'collapse'},
+      {x:330, y:GROUND_Y, w:90,  h:60, type:'fake'},
+      {x:460, y:GROUND_Y, w:90,  h:60, type:'solid'},
+      {x:590, y:GROUND_Y, w:90,  h:60, type:'collapse'},
+      {x:720, y:GROUND_Y, w:180, h:60, type:'solid'},
+    ],
+    traps:[
+      {tripwireX:180, armDelay:500, spikeX:470, spikeW:50, spikeH:26},
+      {tripwireX:470, armDelay:380, spikeX:760, spikeW:50, spikeH:26},
+    ],
+    goal:{x:850, y:330, w:36, h:50},
+  },
+];
+
+let currentLevel=0, platforms=[], traps=[], goal=null, player=null, keys;
+let attempts=1, best=null;
+let state='title'; // 'title' | 'playing' | 'dead' | 'won'
+let squash=1;
+
+function cloneLevel(i){
+  const lvl=LEVELS[i];
+  platforms=lvl.platforms.map(p=>({...p, solid:p.type!=='fake', gone:false, touchedAt:null}));
+  traps=lvl.traps.map(t=>({...t, crossed:false, armedAt:null, up:false}));
+  goal=lvl.goal;
+  return lvl;
+}
+function resetPlayer(startPos){ player={x:startPos.x,y:startPos.y,w:26,h:34,vx:0,vy:0,onGround:false,wasOnGround:false}; }
+
+function startGame(){
+  ensureAudio();
+  document.getElementById('titleOverlay').classList.remove('show');
+  document.getElementById('levelTotal').textContent=LEVELS.length;
+  currentLevel=0; attempts=1;
+  document.getElementById('attempts').textContent=attempts;
+  loadLevel(true);
+}
+function loadLevel(silent){
+  const lvl=cloneLevel(currentLevel);
+  resetPlayer(lvl.start);
+  particles=[]; shake=0; squash=1;
+  document.getElementById('levelNum').textContent=currentLevel+1;
+  document.getElementById('dieOverlay').classList.remove('show');
+  document.getElementById('winOverlay').classList.remove('show');
+  state='playing';
+}
+function restart(){
+  attempts++; document.getElementById('attempts').textContent=attempts;
+  loadLevel();
+}
+function nextLevel(){
+  if(currentLevel < LEVELS.length-1){ currentLevel++; loadLevel(true); }
+  else { currentLevel=0; attempts=1; document.getElementById('attempts').textContent=attempts; loadLevel(true); }
+}
+
+keys={left:false,right:false,jump:false};
+window.addEventListener('keydown', e=>{
+  if(state==='title' && !['m','M'].includes(e.key)){ startGame(); }
+  if(['ArrowLeft','a','A'].includes(e.key)) keys.left=true;
+  if(['ArrowRight','d','D'].includes(e.key)) keys.right=true;
+  if(['ArrowUp','w','W',' '].includes(e.key)){ keys.jump=true; e.preventDefault(); }
+  if(e.key==='r' || e.key==='R'){ if(state!=='title') restart(); }
+  if(e.key==='m' || e.key==='M'){ muted=!muted; }
+});
+window.addEventListener('keyup', e=>{
+  if(['ArrowLeft','a','A'].includes(e.key)) keys.left=false;
+  if(['ArrowRight','d','D'].includes(e.key)) keys.right=false;
+  if(['ArrowUp','w','W',' '].includes(e.key)) keys.jump=false;
+});
+
+function rectsOverlap(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+function solids(){ return platforms.filter(p=>p.solid && !p.gone); }
+
+function moveAxis(axis, delta){
+  if(axis==='x') player.x+=delta; else player.y+=delta;
+  for(const p of solids()){
+    if(!rectsOverlap(player,p)) continue;
+    if(axis==='x'){
+      if(delta>0) player.x=p.x-player.w; else if(delta<0) player.x=p.x+p.w;
+      player.vx=0;
+    } else {
+      if(delta>0){ player.y=p.y-player.h; player.vy=0; player.onGround=true; }
+      else if(delta<0){ player.y=p.y+p.h; player.vy=0; }
+    }
+  }
+}
+
+function die(msg){
+  if(state!=='playing') return;
+  state='dead';
+  sfx.die(); addShake(10);
+  spawnParticles(player.x+player.w/2, player.y+player.h/2, 18, '#ff3b52', {spread:5, life:36, upBias:2});
+  document.getElementById('dieMsg').textContent = msg || DIE_MESSAGES[Math.floor(Math.random()*DIE_MESSAGES.length)];
+  document.getElementById('dieOverlay').classList.add('show');
+}
+function win(){
+  if(state!=='playing') return;
+  state='won';
+  sfx.win();
+  spawnParticles(player.x+player.w/2, player.y+player.h/2, 40, '#8bff5a', {spread:6, life:60, upBias:4});
+  const isLast = currentLevel===LEVELS.length-1;
+  if(isLast && (best===null || attempts<best)){ best=attempts; document.getElementById('best').textContent=best; }
+  document.getElementById('winBig').textContent = isLast ? '🏆 You beat it!' : '🎉 Level Complete!';
+  document.getElementById('winMsg').textContent = isLast
+    ? `All ${LEVELS.length} levels, ${attempts} attempt${attempts===1?'':'s'} total. Go brag about it.`
+    : `On to level ${currentLevel+2}.`;
+  document.getElementById('winBtn').textContent = isLast ? 'Play again' : 'Next Level';
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+function update(now){
+  if(shake>0) shake*=0.85; if(shake<0.2) shake=0;
+  updateParticles();
+  if(state!=='playing') return;
+
+  player.wasOnGround=player.onGround;
+  player.vx = keys.left ? -MOVE_SPEED : keys.right ? MOVE_SPEED : 0;
+  moveAxis('x', player.vx);
+
+  if(keys.jump && player.onGround){ player.vy=JUMP_V; player.onGround=false; sfx.jump(); squash=0.7;
+    spawnParticles(player.x+player.w/2, player.y+player.h, 6, '#c9a8e0', {spread:2,life:16,size:2}); }
+  player.vy = Math.min(player.vy+GRAVITY, MAX_FALL);
+  player.onGround=false;
+  moveAxis('y', player.vy);
+  if(player.onGround && !player.wasOnGround){ sfx.land(); squash=1.35;
+    spawnParticles(player.x+player.w/2, player.y+player.h, 8, '#c9a8e0', {spread:2.5,life:18,size:2}); }
+  squash += (1-squash)*0.25;
+
+  for(const p of platforms){
+    if(p.type!=='collapse' || p.gone) continue;
+    const standingOn = player.onGround && Math.abs((player.y+player.h)-p.y)<2 &&
+      player.x+player.w>p.x && player.x<p.x+p.w;
+    if(standingOn && p.touchedAt===null) p.touchedAt=now;
+    if(p.touchedAt!==null && !p.gone && now-p.touchedAt>320){
+      p.gone=true; p.solid=false; addShake(6);
+      spawnParticles(p.x+p.w/2, p.y, 14, '#ff8a3e', {spread:4, life:26});
+    }
+  }
+
+  for(const t of traps){
+    if(!t.crossed && player.x>t.tripwireX){ t.crossed=true; t.armedAt=now; }
+    if(t.armedAt!==null && !t.up && now-t.armedAt>t.armDelay){ t.up=true; sfx.trap(); addShake(8); }
+    if(t.up){
+      const spike={x:t.spikeX, y:GROUND_Y-t.spikeH, w:t.spikeW, h:t.spikeH};
+      if(rectsOverlap(player, spike)) die();
+    }
+  }
+
+  if(player.y > H+100) die();
+  if(rectsOverlap(player, goal)) win();
+}
+
+function drawBackground(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1c0e26'); g.addColorStop(0.7,'#150a1c'); g.addColorStop(1,'#0d0710');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.025)'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(const t of traps){
+    const glow=ctx.createRadialGradient(t.spikeX,H,10,t.spikeX,H,220);
+    glow.addColorStop(0, t.up?'rgba(255,59,82,.13)':'rgba(255,59,82,.04)');
+    glow.addColorStop(1,'rgba(255,59,82,0)');
+    ctx.fillStyle=glow; ctx.fillRect(0,0,W,H);
+  }
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function drawPlatform(p,color){
+  ctx.fillStyle=color; roundRect(p.x,p.y,p.w,p.h,8); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.1)'; roundRect(p.x,p.y,p.w,6,4); ctx.fill();
+}
+
+function draw(now){
+  ctx.save();
+  const off=shakeOffset();
+  ctx.translate(off.x, off.y);
+
+  drawBackground();
+
+  for(const p of platforms){
+    if(p.gone) continue;
+    // fake and solid platforms look identical — that's the point
+    const color = p.type==='collapse' ? '#ff8a3e' : '#5a3a72';
+    if(p.type==='collapse' && p.touchedAt!==null){
+      const t=(now-p.touchedAt)/320;
+      ctx.save();
+      ctx.translate(Math.sin(now/25)*(4*t), 0);
+      ctx.globalAlpha=Math.max(0,1-t);
+      drawPlatform(p,color);
+      ctx.restore();
+    } else {
+      drawPlatform(p,color);
+    }
+  }
+
+  ctx.fillStyle='#e8e8f0';
+  for(const t of traps){
+    if(!t.up) continue;
+    for(let sx=t.spikeX; sx<t.spikeX+t.spikeW; sx+=12){
+      ctx.beginPath();
+      ctx.moveTo(sx,GROUND_Y); ctx.lineTo(sx+6,GROUND_Y-t.spikeH); ctx.lineTo(sx+12,GROUND_Y);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  if(goal){
+    ctx.fillStyle='#8bff5a';
+    ctx.fillRect(goal.x, goal.y, 4, goal.h);
+    const flagWave=Math.sin(now/220)*3;
+    ctx.beginPath();
+    ctx.moveTo(goal.x+4, goal.y);
+    ctx.lineTo(goal.x+30+flagWave, goal.y+9);
+    ctx.lineTo(goal.x+4, goal.y+18);
+    ctx.closePath(); ctx.fill();
+  }
+
+  drawParticles();
+
+  if((state==='playing' || state==='dead') && player){
+    ctx.save();
+    const cx=player.x+player.w/2, cy=player.y+player.h;
+    const sy=squash, sx=1+(1-squash)*0.6;
+    ctx.translate(cx,cy); ctx.scale(sx,sy); ctx.translate(-cx,-cy-player.h*sy+player.h);
+    ctx.fillStyle='#ff3b52';
+    roundRect(player.x, player.y, player.w, player.h, 7); ctx.fill();
+    ctx.fillStyle='#0d0710';
+    ctx.fillRect(player.x+5, player.y+8, 4,4);
+    ctx.fillRect(player.x+player.w-9, player.y+8, 4,4);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function loop(t){
+  update(t);
+  draw(t);
+  requestAnimationFrame(loop);
+}
+document.getElementById('levelTotal').textContent=LEVELS.length;
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
